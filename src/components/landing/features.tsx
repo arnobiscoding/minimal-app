@@ -35,9 +35,9 @@ const features = [
 
 export function FeatureSection() {
   return (
-    <section id="features" className="container py-24 px-4 md:px-8">
+    <section id="features" className="mx-auto max-w-7xl py-24 px-4 md:px-8">
       <div className="mb-12 text-center">
-        <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl mb-4">
+        <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white mb-3">
           Mission Objectives
         </h2>
         <p className="text-slate-400 max-w-2xl mx-auto">
@@ -47,18 +47,18 @@ export function FeatureSection() {
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {features.map((feature, i) => (
-          <Card
-            key={i}
-            className="bg-slate-900/50 border-slate-800 text-slate-100 backdrop-blur-sm"
-          >
-            <CardHeader>
-              <feature.icon className="h-10 w-10 text-emerald-500 mb-4" />
-              <CardTitle className="text-xl">{feature.title}</CardTitle>
-              <CardDescription className="text-slate-400">
-                {feature.description}
-              </CardDescription>
-            </CardHeader>
-          </Card>
+          <div key={i} className="group relative">
+            <div className="absolute -inset-px rounded-2xl bg-linear-to-br from-emerald-400/20 via-emerald-400/0 to-cyan-400/20 opacity-0 blur transition-opacity duration-300 group-hover:opacity-100" />
+            <Card className="relative h-full rounded-2xl border border-white/10 bg-slate-900/60 text-slate-100 backdrop-blur-sm">
+              <CardHeader>
+                <feature.icon className="h-10 w-10 text-emerald-400 mb-4" />
+                <CardTitle className="text-xl">{feature.title}</CardTitle>
+                <CardDescription className="text-slate-400">
+                  {feature.description}
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
         ))}
       </div>
     </section>
