@@ -475,4 +475,4 @@ For issues, questions, or contributions, please open an issue on GitHub.
 
 ---
 
-**Made with ❤️ for competitive multiplayer gaming**
+\*_Made with ❤️ Megamind Team_
