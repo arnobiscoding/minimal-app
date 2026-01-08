@@ -1,75 +1,74 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { createClient } from '@/utils/supabase/client'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { createClient } from "@/utils/supabase/client";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 export default function SignUpPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
-  const router = useRouter()
-  const supabase = createClient()
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const router = useRouter();
+  const supabase = createClient();
 
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-    setSuccess(false)
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(false);
 
     // Validate passwords match
     if (password !== confirmPassword) {
-      setError('Passwords do not match')
-      setLoading(false)
-      return
+      setError("Passwords do not match");
+      setLoading(false);
+      return;
     }
 
     // Validate password length
     if (password.length < 6) {
-      setError('Password must be at least 6 characters')
-      setLoading(false)
-      return
+      setError("Password must be at least 6 characters");
+      setLoading(false);
+      return;
     }
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      })
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
 
-      if (error) {
-        setError(error.message)
+      if (!res.ok) {
+        setError(data.error || "Failed to sign up");
       } else if (data.user) {
-        setSuccess(true)
-        setEmail('')
-        setPassword('')
-        setConfirmPassword('')
-        
+        setSuccess(true);
+        setEmail("");
+        setPassword("");
+        setConfirmPassword("");
+
         // If email confirmation is not required, redirect to dashboard
         if (data.session) {
           setTimeout(() => {
-            router.push('/dashboard')
-          }, 2000)
+            router.push("/dashboard");
+          }, 2000);
         } else {
           // Otherwise show success message
           setTimeout(() => {
-            router.push('/login')
-          }, 3000)
+            router.push("/login");
+          }, 3000);
         }
       }
     } catch (err) {
-      setError('An unexpected error occurred')
+      setError("An unexpected error occurred");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 p-4">
@@ -85,7 +84,9 @@ export default function SignUpPage() {
             <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-pink-600 bg-clip-text text-transparent text-center mb-2">
               Create Account
             </h1>
-            <p className="text-center text-gray-600 text-sm">Sign up to get started</p>
+            <p className="text-center text-gray-600 text-sm">
+              Sign up to get started
+            </p>
           </div>
 
           {error && (
@@ -98,9 +99,7 @@ export default function SignUpPage() {
           {success && (
             <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm font-medium flex items-start gap-3">
               <span className="text-lg">✅</span>
-              <span>
-                Account created successfully! Redirecting...
-              </span>
+              <span>Account created successfully! Redirecting...</span>
             </div>
           )}
 
@@ -140,7 +139,9 @@ export default function SignUpPage() {
                 minLength={6}
                 className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:bg-white transition text-gray-900 placeholder:text-gray-400"
               />
-              <p className="text-xs text-gray-500 mt-2">Must be at least 6 characters</p>
+              <p className="text-xs text-gray-500 mt-2">
+                Must be at least 6 characters
+              </p>
             </div>
 
             <div>
@@ -171,7 +172,7 @@ export default function SignUpPage() {
                   <span className="animate-spin">⟳</span> Creating Account...
                 </span>
               ) : (
-                'Create Account'
+                "Create Account"
               )}
             </button>
           </form>
@@ -181,7 +182,9 @@ export default function SignUpPage() {
               <div className="w-full border-t-2 border-gray-200"></div>
             </div>
             <div className="relative flex justify-center">
-              <span className="px-3 bg-white/95 text-gray-500 text-xs font-semibold uppercase tracking-wider">Already have an account?</span>
+              <span className="px-3 bg-white/95 text-gray-500 text-xs font-semibold uppercase tracking-wider">
+                Already have an account?
+              </span>
             </div>
           </div>
 
@@ -193,17 +196,23 @@ export default function SignUpPage() {
           </Link>
 
           <p className="text-center text-gray-600 text-xs mt-8">
-            By signing up, you agree to our{' '}
-            <Link href="#" className="font-bold text-indigo-600 hover:text-pink-600 transition">
+            By signing up, you agree to our{" "}
+            <Link
+              href="#"
+              className="font-bold text-indigo-600 hover:text-pink-600 transition"
+            >
               Terms of Service
-            </Link>
-            {' '}and{' '}
-            <Link href="#" className="font-bold text-indigo-600 hover:text-pink-600 transition">
+            </Link>{" "}
+            and{" "}
+            <Link
+              href="#"
+              className="font-bold text-indigo-600 hover:text-pink-600 transition"
+            >
               Privacy Policy
             </Link>
           </p>
         </div>
       </div>
     </div>
-  )
+  );
 }
