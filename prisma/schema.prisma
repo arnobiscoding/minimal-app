@@ -36,29 +36,39 @@ model User {
 model QueueEntry {
   userId    String   @id
   rankTier  String   // e.g. "SILVER"
+  mmr       Int      // For MMR-based matching
   joinedAt  DateTime @default(now())
+  
+  @@index([rankTier, mmr])
 }
 
 // ==========================================
 // 3. THE MATCH (The Container)
 // ==========================================
 model Match {
-  id          String    @id @default(uuid())
-  status      String    @default("ACTIVE") // ACTIVE, FINISHED
+  id          String       @id @default(uuid())
+  status      MatchStatus  @default(ACTIVE)
   
   // The "State Machine" Phase
-  phase       GamePhase @default(GUIDELINES) 
+  phase       GamePhase    @default(GUIDELINES) 
   
   // The Winning Secret Key (Hidden from Detective via RLS)
   finalKey    String?   
+  
+  roundsToPlay      Int      @default(4)
+  currentRoundNumber Int      @default(0)
 
   createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   endedAt     DateTime?
 
   // Relations
   participants MatchParticipant[]
   rounds       Round[]
   proposals    KeyProposal[]
+  
+  @@index([phase, status])
+  @@index([status])
 }
 
 // Enum for Game Phases (Type Safety)
@@ -66,24 +76,44 @@ enum GamePhase {
   GUIDELINES      // Tutorial Screen
   KEY_SELECTION   // Spies Voting
   PLAYING         // Drawing & Guessing
+  HALFTIME        // Role Swap
   FINISHED        // Game Over
+}
+
+enum MatchStatus {
+  ACTIVE
+  FINISHED
+  CANCELLED
+}
+
+enum ParticipantStatus {
+  JOINED
+  READY
+  DISCONNECTED
 }
 
 // ==========================================
 // 4. PARTICIPANTS (Players in a Match)
 // ==========================================
 model MatchParticipant {
-  id        String   @id @default(uuid())
+  id        String            @id @default(uuid())
   matchId   String
   userId    String
   
   // Their role in THIS specific match (Rotates!)
-  role      Role     @default(SPECTATOR)
-  score     Int      @default(0)
+  role      Role              @default(SPECTATOR)
+  status    ParticipantStatus @default(JOINED)
+  score     Int               @default(0)
+  ready     Boolean           @default(false)
+  mmrSnapshot Int?            // MMR at join time for reporting
   
   // Relations
   match     Match    @relation(fields: [matchId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
+  
+  @@unique([matchId, userId])
+  @@index([matchId, role])
+  @@index([matchId, status])
 }
 
 enum Role {
@@ -120,8 +150,24 @@ model Round {
   targetWord  String   // The word to draw (e.g. "SUN")
   
   winnerId    String?  // Who guessed correctly first?
+  winnerTeam  String?  // SPY or DETECTIVE
   startedAt   DateTime @default(now())
   endedAt     DateTime?
 
   match       Match    @relation(fields: [matchId], references: [id])
+  
+  @@index([matchId, roundNumber])
+}
+
+model GuessAttempt {
+  id            String   @id @default(uuid())
+  matchId       String
+  roundId       String
+  participantId String   // FK to MatchParticipant
+  text          String
+  isCorrect     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  
+  @@index([matchId, roundId])
+  @@index([participantId])
 }
