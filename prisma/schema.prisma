@@ -7,18 +7,121 @@ datasource db {
   provider = "postgresql"
 }
 
+// ==========================================
+// 1. USER & PROFILE (Linked to Supabase Auth)
+// ==========================================
 model User {
-  id    Int     @id @default(autoincrement())
-  email String  @unique
-  name  String?
-  posts Post[]
+  id            String   @id @default(uuid())
+  // This email/username comes from Supabase Auth
+  email         String   @unique 
+  username      String   @unique
+  avatarUrl     String?
+  
+  // Ranking System Data
+  rankTier      String   @default("BRONZE") // BRONZE, SILVER, GOLD, DIAMOND
+  mmr           Int      @default(1000)     // Matchmaking Rating
+  matchesPlayed Int      @default(0)
+  
+  createdAt     DateTime @default(now())
+  
+  // Relations
+  matchHistory  MatchParticipant[]
+  proposals     KeyProposal[]
 }
 
-model Post {
-  id        Int     @id @default(autoincrement())
-  title     String
-  content   String?
-  published Boolean @default(false)
-  authorId  Int
-  author    User    @relation(fields: [authorId], references: [id])
+// ==========================================
+// 2. MATCHMAKING QUEUE
+// ==========================================
+// Users sit here temporarily while waiting for a game
+model QueueEntry {
+  userId    String   @id
+  rankTier  String   // e.g. "SILVER"
+  joinedAt  DateTime @default(now())
+}
+
+// ==========================================
+// 3. THE MATCH (The Container)
+// ==========================================
+model Match {
+  id          String    @id @default(uuid())
+  status      String    @default("ACTIVE") // ACTIVE, FINISHED
+  
+  // The "State Machine" Phase
+  phase       GamePhase @default(GUIDELINES) 
+  
+  // The Winning Secret Key (Hidden from Detective via RLS)
+  finalKey    String?   
+
+  createdAt   DateTime  @default(now())
+  endedAt     DateTime?
+
+  // Relations
+  participants MatchParticipant[]
+  rounds       Round[]
+  proposals    KeyProposal[]
+}
+
+// Enum for Game Phases (Type Safety)
+enum GamePhase {
+  GUIDELINES      // Tutorial Screen
+  KEY_SELECTION   // Spies Voting
+  PLAYING         // Drawing & Guessing
+  FINISHED        // Game Over
+}
+
+// ==========================================
+// 4. PARTICIPANTS (Players in a Match)
+// ==========================================
+model MatchParticipant {
+  id        String   @id @default(uuid())
+  matchId   String
+  userId    String
+  
+  // Their role in THIS specific match (Rotates!)
+  role      Role     @default(SPECTATOR)
+  score     Int      @default(0)
+  
+  // Relations
+  match     Match    @relation(fields: [matchId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+enum Role {
+  SPY
+  DETECTIVE
+  SPECTATOR // For dead players or observers
+}
+
+// ==========================================
+// 5. VOTING SYSTEM (The War Room)
+// ==========================================
+model KeyProposal {
+  id        String   @id @default(uuid())
+  matchId   String
+  userId    String   // The Spy who proposed it
+  
+  text      String   // The proposed key (e.g., "FIRE")
+  votes     Int      @default(0)
+  
+  // Relations
+  match     Match    @relation(fields: [matchId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+// ==========================================
+// 6. ROUNDS (The Action)
+// ==========================================
+model Round {
+  id          String   @id @default(uuid())
+  matchId     String
+  roundNumber Int
+  
+  drawerId    String   // Which Spy is drawing?
+  targetWord  String   // The word to draw (e.g. "SUN")
+  
+  winnerId    String?  // Who guessed correctly first?
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+
+  match       Match    @relation(fields: [matchId], references: [id])
 }
