@@ -2,6 +2,9 @@ import { createClient } from "@/utils/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { buildMatchDTO } from "@/lib/game/dto";
+import { handleError, NotFoundError, ForbiddenError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
+import { matchIdSchema } from "@/lib/validation";
 
 export async function GET(
   request: NextRequest,
@@ -9,6 +12,16 @@ export async function GET(
 ) {
   try {
     const { matchId } = await params;
+    
+    // Validate matchId format
+    const matchIdValidation = matchIdSchema.safeParse(matchId);
+    if (!matchIdValidation.success) {
+      return NextResponse.json(
+        { error: "Invalid match ID format" },
+        { status: 400 }
+      );
+    }
+
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -71,11 +84,16 @@ export async function GET(
     // Build DTO with role-based redaction
     const matchDTO = buildMatchDTO(match, userProfile.id);
 
+    logger.debug("Match fetched", { matchId, userId: userProfile.id });
+
     return NextResponse.json(matchDTO);
   } catch (err) {
-    console.error("Get match error:", err);
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    logger.error("Get match error", err instanceof Error ? err : new Error(String(err)), {
+      matchId: await params.then((p) => p.matchId).catch(() => "unknown"),
+    });
+    
+    const { statusCode, response } = handleError(err);
+    return NextResponse.json(response, { status: statusCode });
   }
 }
 

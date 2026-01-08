@@ -1,14 +1,28 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { proposalSchema } from "@/lib/validation";
+import { handleError, ForbiddenError, NotFoundError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
+  let matchId: string | undefined;
+  
   try {
-    const { matchId, text } = await request.json();
-
-    if (!matchId || !text) {
-      return NextResponse.json({ error: "matchId and text required" }, { status: 400 });
+    const body = await request.json();
+    matchId = body?.matchId;
+    
+    // Validate input
+    const validationResult = proposalSchema.safeParse(body);
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { error: "Validation error", details: validationResult.error.errors },
+        { status: 400 }
+      );
     }
+
+    const validated = validationResult.data;
+    matchId = validated.matchId;
 
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -41,11 +55,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (participant.role !== "SPY") {
-      return NextResponse.json({ error: "Only spies can propose keys" }, { status: 403 });
+      throw new ForbiddenError("Only spies can propose keys");
     }
 
     if (participant.match.phase !== "KEY_SELECTION") {
-      return NextResponse.json({ error: "Not in key selection phase" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Not in key selection phase" },
+        { status: 400 }
+      );
     }
 
     // Check if already proposed
@@ -63,18 +80,23 @@ export async function POST(request: NextRequest) {
     // Create proposal
     await prisma.keyProposal.create({
       data: {
-        matchId,
+        matchId: validated.matchId,
         userId: userProfile.id,
-        text: text.toUpperCase().trim(),
+        text: validated.text,
         votes: 0,
       },
     });
 
+    logger.info("Proposal created", { matchId: validated.matchId, userId: userProfile.id });
+
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("Proposal error:", err);
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    logger.error("Proposal error", err instanceof Error ? err : new Error(String(err)), {
+      matchId,
+    });
+    
+    const { statusCode, response } = handleError(err);
+    return NextResponse.json(response, { status: statusCode });
   }
 }
 
