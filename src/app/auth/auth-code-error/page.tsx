@@ -1,11 +1,11 @@
-import Link from 'next/link'
+import Link from "next/link";
 
 export default function AuthErrorPage({
   searchParams,
 }: {
-  searchParams: { error?: string }
+  searchParams: { error?: string };
 }) {
-  const error = searchParams.error || 'An authentication error occurred'
+  const error = searchParams.error || "An authentication error occurred";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-600 to-red-800 p-4">
@@ -16,7 +16,9 @@ export default function AuthErrorPage({
           <p className="text-gray-600 mb-6">{decodeURIComponent(error)}</p>
 
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8 text-left">
-            <p className="text-sm text-red-800 font-mono break-words">{error}</p>
+            <p className="text-sm text-red-800 font-mono break-words">
+              {error}
+            </p>
           </div>
 
           <div className="space-y-3">
@@ -40,5 +42,5 @@ export default function AuthErrorPage({
         </div>
       </div>
     </div>
-  )
+  );
 }
