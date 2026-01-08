@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -31,13 +31,53 @@ const rankColors: Record<string, { bg: string; text: string; border: string; glo
 
 export default function DashboardClient({ user }: DashboardClientProps) {
   const [isQueueing, setIsQueueing] = useState(false)
+  const [currentMatchId, setCurrentMatchId] = useState<string | null>(null)
+  const [checkingMatch, setCheckingMatch] = useState(true)
   const router = useRouter()
   const rankColor = rankColors[user.rankTier] || rankColors.BRONZE
+
+  // Check if user is already in a match on mount
+  useEffect(() => {
+    const checkMatch = async () => {
+      try {
+        const statusRes = await fetch("/api/matchmaking/status")
+        const statusData = await statusRes.json()
+        
+        if (statusData.matchId) {
+          setCurrentMatchId(statusData.matchId)
+        }
+      } catch (err) {
+        console.error("Failed to check match status:", err)
+      } finally {
+        setCheckingMatch(false)
+      }
+    }
+    
+    checkMatch()
+    
+    // Cleanup on unmount - leave queue if still queuing
+    return () => {
+      if (isQueueing) {
+        fetch("/api/matchmaking/leave", { method: "POST" }).catch(console.error)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleJoinQueue = async () => {
     setIsQueueing(true)
     
     try {
+      // First check if already in a match
+      const statusRes = await fetch("/api/matchmaking/status")
+      const statusData = await statusRes.json()
+      
+      if (statusData.matchId) {
+        setIsQueueing(false)
+        router.push(`/game/${statusData.matchId}`)
+        return
+      }
+
       const res = await fetch("/api/matchmaking/queue", { 
         method: "POST",
       })
@@ -181,39 +221,81 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 </CardTitle>
               </div>
               <CardDescription className="text-slate-400 text-base">
-                Join the encrypted network. Find 3 other agents to start a session.
+                {currentMatchId 
+                  ? "You're already in a match. Continue or leave to join a new one."
+                  : "Join the encrypted network. Find 3 other agents to start a session."}
               </CardDescription>
             </CardHeader>
             <CardContent className="relative z-10">
-              <Button 
-                size="lg" 
-                className="w-full h-16 text-lg font-bold bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:via-emerald-400 hover:to-teal-500 shadow-2xl shadow-emerald-500/40 hover:shadow-emerald-500/60 transition-all duration-300 hover:scale-[1.02] group/btn overflow-hidden"
-                onClick={handleJoinQueue}
-                disabled={isQueueing}
-              >
-                {isQueueing ? (
-                  <>
-                    <Loader2 className="mr-3 h-6 w-6 animate-spin" />
-                    Scanning Frequency...
-                  </>
-                ) : (
-                  <>
-                    <span className="relative z-10 flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 group-hover/btn:rotate-12 transition-transform duration-300" />
-                      INITIATE MATCHMAKING
-                    </span>
-                    <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-700"></span>
-                  </>
-                )}
-              </Button>
-              <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500">
-                <div className="flex gap-1">
-                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
-                  <div className="h-1.5 w-1.5 rounded-full bg-teal-400 animate-pulse delay-75"></div>
-                  <div className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse delay-150"></div>
+              {checkingMatch ? (
+                <div className="w-full h-16 flex items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-emerald-400" />
                 </div>
-                <span>Estimated wait time: &lt; 30 seconds</span>
-              </div>
+              ) : currentMatchId ? (
+                <div className="space-y-3">
+                  <Button 
+                    size="lg" 
+                    className="w-full h-16 text-lg font-bold bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:via-emerald-400 hover:to-teal-500 shadow-2xl shadow-emerald-500/40 hover:shadow-emerald-500/60 transition-all duration-300"
+                    onClick={() => router.push(`/game/${currentMatchId}`)}
+                  >
+                    Continue Match
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    className="w-full h-11 border-red-500/50 text-red-400 hover:bg-red-500/10"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/api/game/leave", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ matchId: currentMatchId }),
+                        });
+                        if (res.ok) {
+                          setCurrentMatchId(null);
+                          toast.success("Left the match");
+                        }
+                      } catch (err) {
+                        toast.error("Failed to leave match");
+                      }
+                    }}
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Leave Match
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Button 
+                    size="lg" 
+                    className="w-full h-16 text-lg font-bold bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:via-emerald-400 hover:to-teal-500 shadow-2xl shadow-emerald-500/40 hover:shadow-emerald-500/60 transition-all duration-300 hover:scale-[1.02] group/btn overflow-hidden"
+                    onClick={handleJoinQueue}
+                    disabled={isQueueing}
+                  >
+                    {isQueueing ? (
+                      <>
+                        <Loader2 className="mr-3 h-6 w-6 animate-spin" />
+                        Scanning Frequency...
+                      </>
+                    ) : (
+                      <>
+                        <span className="relative z-10 flex items-center gap-2">
+                          <Sparkles className="h-5 w-5 group-hover/btn:rotate-12 transition-transform duration-300" />
+                          INITIATE MATCHMAKING
+                        </span>
+                        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-700"></span>
+                      </>
+                    )}
+                  </Button>
+                  <div className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-500">
+                    <div className="flex gap-1">
+                      <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
+                      <div className="h-1.5 w-1.5 rounded-full bg-teal-400 animate-pulse delay-75"></div>
+                      <div className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse delay-150"></div>
+                    </div>
+                    <span>Estimated wait time: &lt; 30 seconds</span>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 

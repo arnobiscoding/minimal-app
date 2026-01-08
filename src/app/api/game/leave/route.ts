@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
     }
 
-    // Check participant and match
+    // Find participant
     const participant = await prisma.matchParticipant.findFirst({
       where: {
         matchId,
@@ -40,27 +40,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Not a participant" }, { status: 403 });
     }
 
-    if (participant.match.phase !== "GUIDELINES") {
-      return NextResponse.json({ error: "Not in guidelines phase" }, { status: 400 });
-    }
-
-    // Mark as ready
+    // Mark as disconnected
     await prisma.matchParticipant.update({
       where: { id: participant.id },
-      data: { ready: true },
+      data: { status: "DISCONNECTED" },
     });
 
-    // Check if all active participants are ready (exclude disconnected)
-    const activeParticipants = await prisma.matchParticipant.findMany({
+    // Check remaining participants
+    const remainingParticipants = await prisma.matchParticipant.findMany({
       where: {
         matchId,
         status: { not: "DISCONNECTED" },
       },
     });
 
-    // Need at least 4 active participants
-    if (activeParticipants.length < 4) {
-      // Not enough players, cancel match
+    // If less than 4 participants remain, cancel the match
+    if (remainingParticipants.length < 4) {
       await prisma.match.update({
         where: { id: matchId },
         data: {
@@ -69,22 +64,16 @@ export async function POST(request: NextRequest) {
           endedAt: new Date(),
         },
       });
-      return NextResponse.json({ success: true, allReady: false, cancelled: true });
-    }
 
-    const allReady = activeParticipants.every((p) => p.ready);
-
-    if (allReady && activeParticipants.length === 4) {
-      // Transition to KEY_SELECTION
-      await prisma.match.update({
-        where: { id: matchId },
-        data: { phase: "KEY_SELECTION" },
+      // Remove all participants from this match
+      await prisma.matchParticipant.deleteMany({
+        where: { matchId },
       });
     }
 
-    return NextResponse.json({ success: true, allReady });
+    return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("Ready error:", err);
+    console.error("Leave match error:", err);
     const message = err instanceof Error ? err.message : "Unexpected error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

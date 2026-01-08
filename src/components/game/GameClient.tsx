@@ -50,10 +50,17 @@ export default function GameClient({ matchId, userId }: GameClientProps) {
       .on("broadcast", { event: "round-update" }, ({ payload }) => {
         fetchMatch();
       })
+      .on("broadcast", { event: "match-cancelled" }, ({ payload }) => {
+        toast.error("Match was cancelled");
+        router.push("/dashboard");
+      })
       .subscribe();
 
+    // Cleanup on unmount - mark as disconnected if leaving
     return () => {
       supabase.removeChannel(channel);
+      // Note: We don't auto-leave on unmount as user might just be refreshing
+      // They can manually leave if needed
     };
   }, [matchId]);
 
@@ -61,13 +68,31 @@ export default function GameClient({ matchId, userId }: GameClientProps) {
     try {
       const res = await fetch(`/api/match/${matchId}`);
       if (!res.ok) {
-        if (res.status === 404) {
+        if (res.status === 404 || res.status === 410) {
+          // Match not found or cancelled
+          toast.error("Match cancelled or not found");
           router.push("/dashboard");
           return;
         }
         throw new Error("Failed to fetch match");
       }
       const data = await res.json();
+      
+      // Check if match is cancelled
+      if (data.cancelled || data.status === "CANCELLED") {
+        toast.error("Match was cancelled");
+        router.push("/dashboard");
+        return;
+      }
+
+      // Check if user is disconnected
+      const currentParticipant = data.participants?.find((p: any) => p.userId === userId);
+      if (currentParticipant?.status === "DISCONNECTED") {
+        toast.error("You left this match");
+        router.push("/dashboard");
+        return;
+      }
+
       setMatch(data);
       setLoading(false);
     } catch (err) {
@@ -124,6 +149,7 @@ export default function GameClient({ matchId, userId }: GameClientProps) {
               fetchMatch();
             }
           }}
+          onRefresh={fetchMatch}
         />
       );
 

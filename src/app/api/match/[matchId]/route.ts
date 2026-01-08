@@ -36,6 +36,21 @@ export async function GET(
       return NextResponse.json({ error: "Not a participant" }, { status: 403 });
     }
 
+    // Check if match is cancelled or has less than 4 active participants
+    const activeParticipants = await prisma.matchParticipant.findMany({
+      where: {
+        matchId,
+        status: { not: "DISCONNECTED" },
+      },
+    });
+
+    if (match.status === "CANCELLED" || activeParticipants.length < 4) {
+      return NextResponse.json({ 
+        error: "Match cancelled or invalid",
+        cancelled: true 
+      }, { status: 410 }); // 410 Gone
+    }
+
     // Fetch match with all relations
     const match = await prisma.match.findUnique({
       where: { id: matchId },

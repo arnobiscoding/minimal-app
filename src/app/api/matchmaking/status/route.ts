@@ -31,13 +31,14 @@ export async function GET() {
       });
     }
 
-    // Check if in active match
+    // Check if in active match (not cancelled or finished)
     const activeParticipant = await prisma.matchParticipant.findFirst({
       where: {
         userId: userProfile.id,
         match: {
           status: "ACTIVE",
         },
+        status: { not: "DISCONNECTED" },
       },
       include: {
         match: true,
@@ -45,6 +46,26 @@ export async function GET() {
     });
 
     if (activeParticipant) {
+      // Check if match is still valid (has 4 active participants)
+      const activeCount = await prisma.matchParticipant.count({
+        where: {
+          matchId: activeParticipant.matchId,
+          status: { not: "DISCONNECTED" },
+        },
+      });
+
+      if (activeCount < 4) {
+        // Match is invalid, remove user from it
+        await prisma.matchParticipant.update({
+          where: { id: activeParticipant.id },
+          data: { status: "DISCONNECTED" },
+        });
+        return NextResponse.json({ 
+          inQueue: false,
+          matchId: null 
+        });
+      }
+
       return NextResponse.json({ 
         inQueue: false,
         matchId: activeParticipant.matchId 

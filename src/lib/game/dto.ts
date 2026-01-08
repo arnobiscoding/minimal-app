@@ -68,7 +68,7 @@ export function buildMatchDTO(
     (r) => r.roundNumber === match.currentRoundNumber
   );
 
-  // Build participants
+  // Build participants (include all, but mark disconnected ones)
   const participants: ParticipantDTO[] = match.participants.map((p) => ({
     id: p.id,
     userId: p.userId,
