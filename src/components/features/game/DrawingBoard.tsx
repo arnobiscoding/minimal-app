@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { ReactSketchCanvas, type ReactSketchCanvasRef } from 'react-sketch-canvas';
 import { createClient } from '@/utils/supabase/client';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface DrawingBoardProps {
   gameId: string;
@@ -13,38 +14,45 @@ interface DrawingBoardProps {
 
 export default function DrawingBoard({ gameId, role, userId, activeDrawerId }: DrawingBoardProps) {
   const canvasRef = useRef<ReactSketchCanvasRef>(null);
+  // Store the active channel in a ref so we can access it inside event handlers
+  const channelRef = useRef<RealtimeChannel | null>(null);
   const supabase = createClient();
   
-  // Only the active drawer can draw, everyone else is a viewer
   const canDraw = role === 'SPY' && userId === activeDrawerId;
 
+  // 1. SETUP CONNECTION (Run once)
   useEffect(() => {
-    // All non-drawing users (detectives + non-active spies) listen for strokes
-    if (!canDraw) {
-      const channel = supabase.channel(`game_room:${gameId}`);
+    // Create the channel ONE time
+    const channel = supabase.channel(`game_room:${gameId}`);
 
-      channel
-        .on('broadcast', { event: 'new-stroke' }, ({ payload }) => {
-          if (canvasRef.current && payload.stroke) {
-            // Load the incoming stroke onto the canvas
-            canvasRef.current.loadPaths(payload.stroke);
-          }
-        })
-        .subscribe();
+    // Setup the listener
+    channel
+      .on('broadcast', { event: 'new-stroke' }, ({ payload }) => {
+        // If I am the one drawing, I don't need to listen to myself
+        // This prevents "echo" lag where my line disappears and reappears
+        if (!canDraw && canvasRef.current && payload.stroke) {
+          canvasRef.current.loadPaths(payload.stroke);
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+            // Channel is ready!
+            channelRef.current = channel;
+        }
+      });
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-  }, [gameId, canDraw, supabase]);
+    // Cleanup on unmount
+    return () => {
+      supabase.removeChannel(channel);
+      channelRef.current = null;
+    };
+  }, [gameId, canDraw, supabase]); // Re-run only if permissions/game change
 
-  // Active drawer: Broadcast strokes when completed
+  // 2. SEND DATA (Use existing connection)
   const handleStroke = async (stroke: unknown) => {
-    if (canDraw) {
-      const channel = supabase.channel(`game_room:${gameId}`);
-      
-      await channel.subscribe();
-      await channel.send({
+    if (canDraw && channelRef.current) {
+      // Send immediately using the open pipe
+      await channelRef.current.send({
         type: 'broadcast',
         event: 'new-stroke',
         payload: { stroke },
