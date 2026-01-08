@@ -36,16 +36,15 @@ export default function SignUpPage() {
     }
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       })
+      const data = await res.json()
 
-      if (error) {
-        setError(error.message)
+      if (!res.ok) {
+        setError(data.error || 'Failed to sign up')
       } else if (data.user) {
         setSuccess(true)
         setEmail('')

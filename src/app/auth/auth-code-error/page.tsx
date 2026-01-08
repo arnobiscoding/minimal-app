@@ -21,4 +21,24 @@ export default function AuthErrorPage({
 
           <div className="space-y-3">
             <Link
-              href="/login"\n              className="block px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition"\n            >\n              Try Again\n            </Link>\n            <Link\n              href="/"\n              className="block px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-900 font-bold rounded-lg transition"\n            >\n              Back to Home\n            </Link>\n          </div>\n        </div>\n\n        <div className="mt-8 pt-6 border-t border-gray-200 text-center text-sm text-gray-600">\n          <p>If the problem persists, please contact support.</p>\n        </div>\n      </div>\n    </div>\n  )\n}\n
+              href="/login"
+              className="block px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition"
+            >
+              Try Again
+            </Link>
+            <Link
+              href="/"
+              className="block px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-900 font-bold rounded-lg transition"
+            >
+              Back to Home
+            </Link>
+          </div>
+        </div>
+
+        <div className="mt-8 pt-6 border-t border-gray-200 text-center text-sm text-gray-600">
+          <p>If the problem persists, please contact support.</p>
+        </div>
+      </div>
+    </div>
+  )
+}

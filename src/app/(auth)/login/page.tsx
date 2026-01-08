@@ -19,16 +19,16 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const res = await fetch('/api/auth/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       })
-
-      if (error) {
-        setError(error.message)
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Failed to sign in')
         setLoading(false)
       } else {
-        // Successful sign in - redirect to dashboard
         router.push('/dashboard')
       }
     } catch (err) {
@@ -45,7 +45,7 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: `${window.location.origin}/api/auth/callback`,
         },
       })
 
