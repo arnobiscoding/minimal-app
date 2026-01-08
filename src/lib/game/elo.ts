@@ -4,11 +4,14 @@
  * Losing team: -25 MMR
  */
 
+import { MMR_CONFIG } from "../constants";
+import type { PrismaClient } from "../../generated/prisma/client";
+
 export function calculateELO(
   winnerMMR: number,
   loserMMR: number
 ): { winnerNewMMR: number; loserNewMMR: number } {
-  const K = 25; // Fixed MMR change per match
+  const K = MMR_CONFIG.MMR_CHANGE;
 
   return {
     winnerNewMMR: winnerMMR + K,
@@ -16,15 +19,15 @@ export function calculateELO(
   };
 }
 
-export function getRankTier(mmr: number): string {
-  if (mmr >= 2000) return "DIAMOND";
-  if (mmr >= 1500) return "GOLD";
-  if (mmr >= 1200) return "SILVER";
+export function getRankTier(mmr: number): "BRONZE" | "SILVER" | "GOLD" | "DIAMOND" {
+  if (mmr >= MMR_CONFIG.RANK_THRESHOLDS.DIAMOND) return "DIAMOND";
+  if (mmr >= MMR_CONFIG.RANK_THRESHOLDS.GOLD) return "GOLD";
+  if (mmr >= MMR_CONFIG.RANK_THRESHOLDS.SILVER) return "SILVER";
   return "BRONZE";
 }
 
 export async function updateMMRForMatch(
-  prisma: any,
+  prisma: PrismaClient,
   matchId: string
 ): Promise<void> {
   const match = await prisma.match.findUnique({
@@ -44,30 +47,37 @@ export async function updateMMRForMatch(
 
   // Calculate team scores
   const spyScore = match.participants
-    .filter((p: any) => p.role === "SPY")
-    .reduce((sum: number, p: any) => sum + p.score, 0);
+    .filter((p) => p.role === "SPY")
+    .reduce((sum, p) => sum + p.score, 0);
   
   const detectiveScore = match.participants
-    .filter((p: any) => p.role === "DETECTIVE")
-    .reduce((sum: number, p: any) => sum + p.score, 0);
+    .filter((p) => p.role === "DETECTIVE")
+    .reduce((sum, p) => sum + p.score, 0);
 
   const spiesWon = spyScore > detectiveScore;
 
   // Calculate average MMR for each team
-  const spyParticipants = match.participants.filter((p: any) => p.role === "SPY");
-  const detectiveParticipants = match.participants.filter((p: any) => p.role === "DETECTIVE");
+  const spyParticipants = match.participants.filter((p) => p.role === "SPY");
+  const detectiveParticipants = match.participants.filter((p) => p.role === "DETECTIVE");
   
-  const avgSpyMMR = spyParticipants.reduce((sum: number, p: any) => sum + (p.mmrSnapshot || 1000), 0) / spyParticipants.length;
-  const avgDetectiveMMR = detectiveParticipants.reduce((sum: number, p: any) => sum + (p.mmrSnapshot || 1000), 0) / detectiveParticipants.length;
+  const avgSpyMMR = spyParticipants.reduce(
+    (sum, p) => sum + (p.mmrSnapshot || MMR_CONFIG.DEFAULT_MMR),
+    0
+  ) / spyParticipants.length;
+  
+  const avgDetectiveMMR = detectiveParticipants.reduce(
+    (sum, p) => sum + (p.mmrSnapshot || MMR_CONFIG.DEFAULT_MMR),
+    0
+  ) / detectiveParticipants.length;
 
   // Update MMR for all participants
   await Promise.all(
-    match.participants.map(async (participant: any) => {
+    match.participants.map(async (participant) => {
       const isWinner = spiesWon
         ? participant.role === "SPY"
         : participant.role === "DETECTIVE";
 
-      const participantMMR = participant.mmrSnapshot || 1000;
+      const participantMMR = participant.mmrSnapshot || MMR_CONFIG.DEFAULT_MMR;
       const opponentAvgMMR = participant.role === "SPY" ? avgDetectiveMMR : avgSpyMMR;
 
       const { winnerNewMMR, loserNewMMR } = calculateELO(

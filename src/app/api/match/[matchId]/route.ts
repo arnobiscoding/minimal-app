@@ -24,34 +24,7 @@ export async function GET(
       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
     }
 
-    // Check if user is participant
-    const participant = await prisma.matchParticipant.findFirst({
-      where: {
-        matchId,
-        userId: userProfile.id,
-      },
-    });
-
-    if (!participant) {
-      return NextResponse.json({ error: "Not a participant" }, { status: 403 });
-    }
-
-    // Check if match is cancelled or has less than 4 active participants
-    const activeParticipants = await prisma.matchParticipant.findMany({
-      where: {
-        matchId,
-        status: { not: "DISCONNECTED" },
-      },
-    });
-
-    if (match.status === "CANCELLED" || activeParticipants.length < 4) {
-      return NextResponse.json({ 
-        error: "Match cancelled or invalid",
-        cancelled: true 
-      }, { status: 410 }); // 410 Gone
-    }
-
-    // Fetch match with all relations
+    // Fetch match with all relations first
     const match = await prisma.match.findUnique({
       where: { id: matchId },
       include: {
@@ -74,6 +47,25 @@ export async function GET(
 
     if (!match) {
       return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    }
+
+    // Check if user is participant
+    const participant = match.participants.find((p) => p.userId === userProfile.id);
+
+    if (!participant) {
+      return NextResponse.json({ error: "Not a participant" }, { status: 403 });
+    }
+
+    // Check if match is cancelled or has less than 4 active participants
+    const activeParticipants = match.participants.filter(
+      (p) => p.status !== "DISCONNECTED"
+    );
+
+    if (match.status === "CANCELLED" || activeParticipants.length < 4) {
+      return NextResponse.json({ 
+        error: "Match cancelled or invalid",
+        cancelled: true 
+      }, { status: 410 }); // 410 Gone
     }
 
     // Build DTO with role-based redaction
